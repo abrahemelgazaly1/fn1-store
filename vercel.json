@@ -1,55 +1,7 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "build"
-      }
-    }
-  ],
+  "buildCommand": "npm run build",
+  "outputDirectory": "build",
   "rewrites": [
-    {
-      "source": "/api/admin/login",
-      "destination": "/api/admin/login.js"
-    },
-    {
-      "source": "/api/admin/create",
-      "destination": "/api/admin/login.js"
-    },
-    {
-      "source": "/api/products/latest",
-      "destination": "/api/products/latest.js"
-    },
-    {
-      "source": "/api/products/category/:name",
-      "destination": "/api/products/category/[name].js"
-    },
-    {
-      "source": "/api/products/:id",
-      "destination": "/api/products/[id].js"
-    },
-    {
-      "source": "/api/products",
-      "destination": "/api/products.js"
-    },
-    {
-      "source": "/api/orders/:id",
-      "destination": "/api/orders/[id].js"
-    },
-    {
-      "source": "/api/orders",
-      "destination": "/api/orders.js"
-    }
-  ],
-  "routes": [
-    {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
-    }
+    { "source": "/(.*)", "destination": "/" }
   ]
 }
