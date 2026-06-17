@@ -1,28 +1,19 @@
-const { MongoClient, ObjectId } = require('mongodb');
-
-const uri = process.env.MONGODB_URI;
-let cachedClient = null;
-
-async function connectToDatabase() {
-  if (cachedClient) return cachedClient;
-  const client = new MongoClient(uri);
-  await client.connect();
-  cachedClient = client;
-  return client;
-}
+const { ObjectId } = require('mongodb');
+const { getDB } = require('../_lib/db');
+const { requireAdmin } = require('../_lib/auth');
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   const { id } = req.query;
+  if (!id || !ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid product ID' });
 
   try {
-    const client = await connectToDatabase();
-    const db = client.db('offstore');
+    const db = await getDB();
     const collection = db.collection('products');
 
     if (req.method === 'GET') {
@@ -32,6 +23,7 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === 'PUT') {
+      if (!requireAdmin(req, res)) return;
       const { _id, ...updateData } = req.body;
       await collection.updateOne({ _id: new ObjectId(id) }, { $set: updateData });
       const updated = await collection.findOne({ _id: new ObjectId(id) });
@@ -39,12 +31,13 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === 'DELETE') {
+      if (!requireAdmin(req, res)) return;
       await collection.deleteOne({ _id: new ObjectId(id) });
       return res.status(200).json({ success: true });
     }
 
-    res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ error: 'Method not allowed' });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };

@@ -7,7 +7,7 @@ import { API_URL } from '../config';
 const CLOTHING_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
 const COLORS = ['BLACK', 'WHITE', 'BLUE', 'RED', 'BEIGE', 'PINK', 'GRAY', 'BROWN', 'GREEN', 'YELLOW'];
 const CATEGORIES = ['T-Shirts', 'Cap', 'Bracelet', 'Wallet', 'Belt', 'Necklace', 'Ring', 'Boxers', 'Bags'];
-const CATEGORIES_WITH_SIZES = ['T-Shirts', 'Boxers']; // Only these categories have sizes
+const CATEGORIES_WITH_SIZES = ['T-Shirts', 'Boxers'];
 
 const Admin = () => {
   const navigate = useNavigate();
@@ -15,6 +15,8 @@ const Admin = () => {
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [isAuthed, setIsAuthed] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
 
   const [form, setForm] = useState({
@@ -22,11 +24,19 @@ const Admin = () => {
     sizes: [], colors: [], images: [], soldOutSizes: [], soldOutColors: [],
   });
 
+  const authHeaders = () => ({
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
+  });
+
   useEffect(() => {
     const token = localStorage.getItem('adminToken');
-    if (!token) navigate('/admin/login');
-    fetchProducts();
-    fetchOrders();
+    if (!token) {
+      navigate('/admin/login');
+      return;
+    }
+    setIsAuthed(true);
+    Promise.all([fetchProducts(), fetchOrders()]).finally(() => setDataLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -34,84 +44,71 @@ const Admin = () => {
     try {
       const res = await fetch(`${API_URL}/api/products`);
       const data = await res.json();
-      setProducts(data);
-    } catch (error) { console.error(error); }
+      setProducts(Array.isArray(data) ? data : []);
+    } catch (error) { console.error('fetchProducts error:', error); }
   };
 
   const fetchOrders = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/orders`);
+      const res = await fetch(`${API_URL}/api/orders`, { headers: authHeaders() });
       const data = await res.json();
-      setOrders(data);
-    } catch (error) { console.error(error); }
+      if (res.status === 401) { navigate('/admin/login'); return; }
+      setOrders(Array.isArray(data) ? data : []);
+    } catch (error) { console.error('fetchOrders error:', error); }
   };
 
   const getSizes = () => CLOTHING_SIZES;
-  
   const categoryHasSizes = () => CATEGORIES_WITH_SIZES.includes(form.category);
 
   const handleImageUpload = (e) => {
     const files = Array.from(e.target.files);
     files.forEach((file) => {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setForm((prev) => ({ ...prev, images: [...prev.images, reader.result] }));
-      };
+      reader.onloadend = () => setForm((prev) => ({ ...prev, images: [...prev.images, reader.result] }));
       reader.readAsDataURL(file);
     });
     Swal.fire({ icon: 'success', title: 'Images uploaded!', showConfirmButton: false, timer: 1200 });
   };
 
-  const toggleSize = (size) => {
-    setForm((prev) => ({
-      ...prev,
-      sizes: prev.sizes.includes(size) ? prev.sizes.filter((s) => s !== size) : [...prev.sizes, size],
-    }));
-  };
+  const toggleSize = (size) => setForm((prev) => ({
+    ...prev,
+    sizes: prev.sizes.includes(size) ? prev.sizes.filter((s) => s !== size) : [...prev.sizes, size],
+  }));
 
-  const toggleColor = (color) => {
-    setForm((prev) => ({
-      ...prev,
-      colors: prev.colors.includes(color) ? prev.colors.filter((c) => c !== color) : [...prev.colors, color],
-    }));
-  };
+  const toggleColor = (color) => setForm((prev) => ({
+    ...prev,
+    colors: prev.colors.includes(color) ? prev.colors.filter((c) => c !== color) : [...prev.colors, color],
+  }));
 
-  const toggleSoldOutSize = (size) => {
-    setForm((prev) => ({
-      ...prev,
-      soldOutSizes: prev.soldOutSizes?.includes(size) 
-        ? prev.soldOutSizes.filter((s) => s !== size) 
-        : [...(prev.soldOutSizes || []), size],
-    }));
-  };
+  const toggleSoldOutSize = (size) => setForm((prev) => ({
+    ...prev,
+    soldOutSizes: prev.soldOutSizes?.includes(size)
+      ? prev.soldOutSizes.filter((s) => s !== size)
+      : [...(prev.soldOutSizes || []), size],
+  }));
 
-  const toggleSoldOutColor = (color) => {
-    setForm((prev) => ({
-      ...prev,
-      soldOutColors: prev.soldOutColors?.includes(color) 
-        ? prev.soldOutColors.filter((c) => c !== color) 
-        : [...(prev.soldOutColors || []), color],
-    }));
-  };
+  const toggleSoldOutColor = (color) => setForm((prev) => ({
+    ...prev,
+    soldOutColors: prev.soldOutColors?.includes(color)
+      ? prev.soldOutColors.filter((c) => c !== color)
+      : [...(prev.soldOutColors || []), color],
+  }));
 
   const handleSubmit = async () => {
     if (!form.name || !form.price || !form.category || form.colors.length === 0) {
       Swal.fire({ icon: 'warning', title: 'Missing fields', text: 'Please fill all required fields', confirmButtonColor: '#171717' });
       return;
     }
-    
-    // Check if sizes are required for this category
     if (categoryHasSizes() && form.sizes.length === 0) {
       Swal.fire({ icon: 'warning', title: 'Missing sizes', text: 'Please select at least one size', confirmButtonColor: '#171717' });
       return;
     }
-    
     setLoading(true);
     try {
       const url = editingProduct ? `${API_URL}/api/products/${editingProduct._id}` : `${API_URL}/api/products`;
       const method = editingProduct ? 'PUT' : 'POST';
       const res = await fetch(url, {
-        method, headers: { 'Content-Type': 'application/json' },
+        method, headers: authHeaders(),
         body: JSON.stringify({ ...form, price: Number(form.price) }),
       });
       if (res.ok) {
@@ -140,19 +137,16 @@ const Admin = () => {
   };
 
   const handleDelete = async (id) => {
-    const result = await Swal.fire({
-      title: 'Delete?', icon: 'warning', showCancelButton: true,
-      confirmButtonColor: '#171717', cancelButtonColor: '#ef4444',
-    });
+    const result = await Swal.fire({ title: 'Delete?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#171717', cancelButtonColor: '#ef4444' });
     if (result.isConfirmed) {
-      await fetch(`${API_URL}/api/products/${id}`, { method: 'DELETE' });
+      await fetch(`${API_URL}/api/products/${id}`, { method: 'DELETE', headers: authHeaders() });
       fetchProducts();
     }
   };
 
   const handleSoldOut = async (product) => {
     await fetch(`${API_URL}/api/products/${product._id}`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      method: 'PUT', headers: authHeaders(),
       body: JSON.stringify({ ...product, soldOut: !product.soldOut }),
     });
     fetchProducts();
@@ -160,19 +154,16 @@ const Admin = () => {
 
   const handleOrderStatus = async (orderId, status) => {
     await fetch(`${API_URL}/api/orders/${orderId}`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      method: 'PUT', headers: authHeaders(),
       body: JSON.stringify({ status }),
     });
     fetchOrders();
   };
 
   const handleDeleteOrder = async (id) => {
-    const result = await Swal.fire({
-      title: 'Delete order?', icon: 'warning', showCancelButton: true,
-      confirmButtonColor: '#171717', cancelButtonColor: '#ef4444',
-    });
+    const result = await Swal.fire({ title: 'Delete order?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#171717', cancelButtonColor: '#ef4444' });
     if (result.isConfirmed) {
-      await fetch(`${API_URL}/api/orders/${id}`, { method: 'DELETE' });
+      await fetch(`${API_URL}/api/orders/${id}`, { method: 'DELETE', headers: authHeaders() });
       fetchOrders();
     }
   };
@@ -183,9 +174,10 @@ const Admin = () => {
     { id: 'orders', label: `Orders (${orders.length})`, icon: FiShoppingBag },
   ];
 
+  if (!isAuthed) return null;
+
   return (
     <div className="min-h-screen bg-neutral-50">
-      {/* Header */}
       <div className="bg-white border-b border-neutral-100 px-4 py-4">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -193,10 +185,7 @@ const Admin = () => {
             <h1 className="font-display text-lg font-bold text-neutral-900">FN1 Admin Panel</h1>
           </div>
           <button
-            onClick={() => {
-              localStorage.removeItem('adminToken');
-              navigate('/admin/login');
-            }}
+            onClick={() => { localStorage.removeItem('adminToken'); navigate('/admin/login'); }}
             className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-xl text-sm font-medium hover:bg-red-100 transition-colors"
           >
             <FiLogOut className="w-4 h-4" />
@@ -205,7 +194,6 @@ const Admin = () => {
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="bg-white border-b border-neutral-100">
         <div className="max-w-4xl mx-auto flex">
           {tabs.map((tab) => (
@@ -213,9 +201,7 @@ const Admin = () => {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`flex-1 py-4 flex items-center justify-center gap-2 text-sm font-medium transition-colors ${
-                activeTab === tab.id
-                  ? 'text-neutral-900 border-b-2 border-neutral-900'
-                  : 'text-neutral-500 hover:text-neutral-700'
+                activeTab === tab.id ? 'text-neutral-900 border-b-2 border-neutral-900' : 'text-neutral-500 hover:text-neutral-700'
               }`}
             >
               <tab.icon className="w-4 h-4" />
@@ -226,32 +212,23 @@ const Admin = () => {
       </div>
 
       <div className="p-4 max-w-4xl mx-auto">
-        {/* ADD PRODUCT */}
         {activeTab === 'add' && (
           <div className="bg-white rounded-2xl p-6 space-y-5 animate-fadeIn">
             <h2 className="font-display text-xl font-bold text-neutral-900">
               {editingProduct ? 'Edit Product' : 'Add New Product'}
             </h2>
-            
             <input type="text" placeholder="Product Name" value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="input-style" />
-            
+              onChange={(e) => setForm({ ...form, name: e.target.value })} className="input-style" />
             <input type="number" placeholder="Price (EGP)" value={form.price}
-              onChange={(e) => setForm({ ...form, price: e.target.value })}
-              className="input-style" />
-            
+              onChange={(e) => setForm({ ...form, price: e.target.value })} className="input-style" />
             <textarea placeholder="Description" value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
               className="input-style h-24 resize-none" />
-            
             <select value={form.category}
-              onChange={(e) => setForm({ ...form, category: e.target.value, sizes: [] })}
-              className="input-style">
+              onChange={(e) => setForm({ ...form, category: e.target.value, sizes: [] })} className="input-style">
               <option value="">Select Category</option>
               {CATEGORIES.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
             </select>
-
             {form.category && (
               <>
                 {categoryHasSizes() && (
@@ -272,7 +249,6 @@ const Admin = () => {
                               className={`absolute -top-1 -right-1 w-5 h-5 rounded-full text-[10px] font-bold ${
                                 form.soldOutSizes?.includes(size) ? 'bg-red-500 text-white' : 'bg-yellow-400 text-neutral-900'
                               }`}
-                              title={form.soldOutSizes?.includes(size) ? 'Sold Out' : 'In Stock'}
                             >
                               {form.soldOutSizes?.includes(size) ? '✕' : '✓'}
                             </button>
@@ -300,7 +276,6 @@ const Admin = () => {
                             className={`absolute -top-1 -right-1 w-5 h-5 rounded-full text-[10px] font-bold ${
                               form.soldOutColors?.includes(color) ? 'bg-red-500 text-white' : 'bg-yellow-400 text-neutral-900'
                             }`}
-                            title={form.soldOutColors?.includes(color) ? 'Sold Out' : 'In Stock'}
                           >
                             {form.soldOutColors?.includes(color) ? '✕' : '✓'}
                           </button>
@@ -312,7 +287,6 @@ const Admin = () => {
                 </div>
               </>
             )}
-
             <div>
               <label className="block w-full py-4 border-2 border-dashed border-neutral-200 rounded-xl text-center cursor-pointer hover:border-neutral-400 transition-colors">
                 <input type="file" multiple accept="image/*" onChange={handleImageUpload} className="hidden" />
@@ -332,24 +306,23 @@ const Admin = () => {
                 </div>
               )}
             </div>
-
             <button onClick={handleSubmit} disabled={loading} className="w-full btn-primary disabled:bg-neutral-300">
               {loading ? 'Saving...' : editingProduct ? 'Save Changes' : 'Add Product'}
             </button>
-            {editingProduct && (
-              <button onClick={resetForm} className="w-full btn-secondary">Cancel</button>
-            )}
+            {editingProduct && <button onClick={resetForm} className="w-full btn-secondary">Cancel</button>}
           </div>
         )}
 
-        {/* MANAGE PRODUCTS */}
         {activeTab === 'manage' && (
           <div className="space-y-4 animate-fadeIn">
-            {products.length === 0 ? (
+            {dataLoading ? (
+              <div className="flex justify-center py-16">
+                <div className="w-8 h-8 border-4 border-neutral-900 border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : products.length === 0 ? (
               <div className="bg-white rounded-2xl p-12 text-center">
                 <FiPackage className="w-12 h-12 text-neutral-300 mx-auto mb-4" />
                 <p className="text-neutral-500 font-medium">No products yet</p>
-                <p className="text-neutral-400 text-sm mt-1">Add your first product to get started</p>
               </div>
             ) : (
               products.map((product) => (
@@ -360,17 +333,11 @@ const Admin = () => {
                     <p className="text-neutral-500 text-sm">{product.price} EGP • {product.category}</p>
                     <div className="flex gap-2 mt-3">
                       <button onClick={() => handleDelete(product._id)}
-                        className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-medium hover:bg-red-100">
-                        Delete
-                      </button>
+                        className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-medium hover:bg-red-100">Delete</button>
                       <button onClick={() => handleEdit(product)}
-                        className="px-3 py-1.5 bg-neutral-100 text-neutral-700 rounded-lg text-xs font-medium hover:bg-neutral-200">
-                        Edit
-                      </button>
+                        className="px-3 py-1.5 bg-neutral-100 text-neutral-700 rounded-lg text-xs font-medium hover:bg-neutral-200">Edit</button>
                       <button onClick={() => handleSoldOut(product)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium ${
-                          product.soldOut ? 'bg-green-50 text-green-600' : 'bg-yellow-50 text-yellow-700'
-                        }`}>
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium ${product.soldOut ? 'bg-green-50 text-green-600' : 'bg-yellow-50 text-yellow-700'}`}>
                         {product.soldOut ? 'In Stock' : 'Sold Out'}
                       </button>
                     </div>
@@ -381,20 +348,17 @@ const Admin = () => {
           </div>
         )}
 
-        {/* ORDERS */}
         {activeTab === 'orders' && (
           <div className="space-y-4 animate-fadeIn">
             {orders.length === 0 ? (
               <div className="bg-white rounded-2xl p-12 text-center">
                 <FiShoppingBag className="w-12 h-12 text-neutral-300 mx-auto mb-4" />
                 <p className="text-neutral-500 font-medium">No orders yet</p>
-                <p className="text-neutral-400 text-sm mt-1">Orders will appear here when customers place them</p>
               </div>
             ) : (
               orders.map((order) => (
                 <div key={order._id} className="bg-white rounded-2xl p-4">
                   <p className="text-xs text-neutral-400 mb-3">{new Date(order.createdAt).toLocaleString()}</p>
-                  {/* Order Items */}
                   <div className="space-y-3 mb-4">
                     {order.items?.map((item, idx) => (
                       <div key={idx} className="flex gap-3 p-3 bg-neutral-50 rounded-xl">
@@ -411,13 +375,14 @@ const Admin = () => {
                       </div>
                     ))}
                   </div>
-                  
-                  {/* Customer Info */}
                   <div className="border-t border-neutral-100 pt-4">
                     <p className="text-xs font-medium text-neutral-400 uppercase tracking-wide mb-2">Customer Info</p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
                       <p className="text-neutral-700"><span className="font-medium text-neutral-900">Name:</span> {order.customer?.name}</p>
                       <p className="text-neutral-700"><span className="font-medium text-neutral-900">Phone 1:</span> {order.customer?.phone1}</p>
+                      {order.customer?.governorate && (
+                        <p className="text-neutral-700"><span className="font-medium text-neutral-900">Governorate:</span> {order.customer.governorate}</p>
+                      )}
                       <p className="text-neutral-700 md:col-span-2"><span className="font-medium text-neutral-900">Address:</span> {order.customer?.address}</p>
                       {order.customer?.phone2 && (
                         <p className="text-neutral-700"><span className="font-medium text-neutral-900">Phone 2:</span> {order.customer?.phone2}</p>
@@ -425,6 +390,23 @@ const Admin = () => {
                     </div>
                     <p className="font-display text-lg font-bold text-neutral-900 mt-4">Total: {order.total} EGP</p>
                   </div>
+                  {order.payment && (
+                    <div className="border-t border-neutral-100 pt-4 mt-2">
+                      <p className="text-xs font-medium text-neutral-400 uppercase tracking-wide mb-3">Payment Info</p>
+                      <div className="bg-red-50 rounded-xl p-3 space-y-1.5 text-sm mb-3">
+                        <p className="text-neutral-700"><span className="font-medium text-neutral-900">Method:</span>{' '}<span className="text-red-600 font-semibold">Vodafone Cash</span></p>
+                        <p className="text-neutral-700"><span className="font-medium text-neutral-900">Sent From:</span> {order.payment.fromPhone}</p>
+                        <p className="text-neutral-700"><span className="font-medium text-neutral-900">Sent To:</span> {order.payment.toPhone}</p>
+                      </div>
+                      {order.payment.screenshot && (
+                        <div>
+                          <p className="text-xs font-medium text-neutral-500 mb-2">Payment Screenshot</p>
+                          <img src={order.payment.screenshot} alt="Payment proof"
+                            className="w-full max-h-64 object-contain rounded-xl bg-neutral-100 border border-neutral-200" />
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div className="flex gap-2 mt-3">
                     <select value={order.status} onChange={(e) => handleOrderStatus(order._id, e.target.value)}
                       className="flex-1 px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-sm">
@@ -435,9 +417,7 @@ const Admin = () => {
                       <option value="cancelled">Cancelled</option>
                     </select>
                     <button onClick={() => handleDeleteOrder(order._id)}
-                      className="px-4 py-2 bg-red-50 text-red-600 rounded-xl text-sm font-medium">
-                      Delete
-                    </button>
+                      className="px-4 py-2 bg-red-50 text-red-600 rounded-xl text-sm font-medium">Delete</button>
                   </div>
                 </div>
               ))

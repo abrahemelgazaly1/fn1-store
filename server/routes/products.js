@@ -2,8 +2,9 @@ const express = require('express');
 const router = express.Router();
 const { ObjectId } = require('mongodb');
 const { getDB } = require('../config/db');
+const { requireAdmin } = require('./admin');
 
-// Get all products
+// Get all products - public
 router.get('/', async (req, res) => {
   try {
     const db = getDB();
@@ -50,8 +51,8 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Create product
-router.post('/', async (req, res) => {
+// Create product - admin only
+router.post('/', requireAdmin, async (req, res) => {
   try {
     const db = getDB();
     const product = { ...req.body, createdAt: new Date(), soldOut: false };
@@ -62,8 +63,8 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Update product
-router.put('/:id', async (req, res) => {
+// Update product - admin only
+router.put('/:id', requireAdmin, async (req, res) => {
   try {
     const db = getDB();
     const { _id, ...updateData } = req.body;
@@ -78,8 +79,8 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// Delete product
-router.delete('/:id', async (req, res) => {
+// Delete product - admin only
+router.delete('/:id', requireAdmin, async (req, res) => {
   try {
     const db = getDB();
     await db.collection('products').deleteOne({ _id: new ObjectId(req.params.id) });

@@ -10,6 +10,7 @@ const Products = () => {
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
 
@@ -27,11 +28,13 @@ const Products = () => {
   const fetchProducts = async () => {
     try {
       const res = await fetch(`${API_URL}/api/products`);
+      if (!res.ok) throw new Error('Failed to fetch');
       const data = await res.json();
       setProducts(data);
       setFilteredProducts(data);
     } catch (error) {
       console.error('Error fetching products:', error);
+      setError(true);
     } finally {
       setLoading(false);
     }
@@ -96,6 +99,12 @@ const Products = () => {
         {/* Products Grid */}
         {loading ? (
           <Loading />
+        ) : error ? (
+          <div className="text-center py-20">
+            <p className="text-red-400 text-lg">Failed to load products. Please try again.</p>
+            <button onClick={() => { setError(false); setLoading(true); fetchProducts(); }}
+              className="mt-4 px-6 py-2 bg-neutral-900 text-white rounded-xl text-sm">Retry</button>
+          </div>
         ) : (
           <>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">

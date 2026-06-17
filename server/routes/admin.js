@@ -1,6 +1,21 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const { getDB } = require('../config/db');
+
+// Simple token store (in-memory, fine for single admin use)
+const activeSessions = new Set();
+
+// Middleware to verify admin token
+const requireAdmin = (req, res, next) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token || !activeSessions.has(token)) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+};
+
+module.exports.requireAdmin = requireAdmin;
 
 // Admin login
 router.post('/login', async (req, res) => {
@@ -11,9 +26,11 @@ router.post('/login', async (req, res) => {
     const admin = await db.collection('admins').findOne({ email, password });
     
     if (admin) {
+      const token = 'admin-' + crypto.randomBytes(32).toString('hex');
+      activeSessions.add(token);
       res.json({ 
         success: true, 
-        token: 'admin-token-' + Date.now(),
+        token,
         admin: { email: admin.email }
       });
     } else {

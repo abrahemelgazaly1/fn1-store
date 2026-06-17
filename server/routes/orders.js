@@ -2,9 +2,10 @@ const express = require('express');
 const router = express.Router();
 const { ObjectId } = require('mongodb');
 const { getDB } = require('../config/db');
+const { requireAdmin } = require('./admin');
 
-// Get all orders
-router.get('/', async (req, res) => {
+// Get all orders - admin only
+router.get('/', requireAdmin, async (req, res) => {
   try {
     const db = getDB();
     const orders = await db.collection('orders').find({}).sort({ createdAt: -1 }).toArray();
@@ -15,7 +16,7 @@ router.get('/', async (req, res) => {
 });
 
 // Get single order
-router.get('/:id', async (req, res) => {
+router.get('/:id', requireAdmin, async (req, res) => {
   try {
     const db = getDB();
     const order = await db.collection('orders').findOne({ _id: new ObjectId(req.params.id) });
@@ -39,7 +40,7 @@ router.post('/', async (req, res) => {
 });
 
 // Update order
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireAdmin, async (req, res) => {
   try {
     const db = getDB();
     const { _id, ...updateData } = req.body;
@@ -55,7 +56,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // Delete order
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireAdmin, async (req, res) => {
   try {
     const db = getDB();
     await db.collection('orders').deleteOne({ _id: new ObjectId(req.params.id) });

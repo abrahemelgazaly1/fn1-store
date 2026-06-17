@@ -1,24 +1,28 @@
-import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import React, { useEffect, lazy, Suspense } from 'react';
+import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { CartProvider } from './context/CartContext';
-import Home from './pages/Home';
-import Products from './pages/Products';
-import ProductDetails from './pages/ProductDetails';
-import Category from './pages/Category';
-import Cart from './pages/Cart';
-import Checkout from './pages/Checkout';
-import AdminLogin from './pages/AdminLogin';
-import Admin from './pages/Admin';
+import Loading from './components/Loading';
+
+const Home = lazy(() => import('./pages/Home'));
+const Products = lazy(() => import('./pages/Products'));
+const ProductDetails = lazy(() => import('./pages/ProductDetails'));
+const Category = lazy(() => import('./pages/Category'));
+const Cart = lazy(() => import('./pages/Cart'));
+const Checkout = lazy(() => import('./pages/Checkout'));
+const AdminLogin = lazy(() => import('./pages/AdminLogin'));
+const Admin = lazy(() => import('./pages/Admin'));
 
 // Scroll to top on route change
 const ScrollToTop = () => {
   const { pathname } = useLocation();
-  
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [pathname]);
-  
+  useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
   return null;
+};
+
+// Protect admin route
+const PrivateRoute = ({ children }) => {
+  const token = localStorage.getItem('adminToken');
+  return token ? children : <Navigate to="/admin/login" replace />;
 };
 
 function App() {
@@ -26,16 +30,18 @@ function App() {
     <CartProvider>
       <Router>
         <ScrollToTop />
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/products" element={<Products />} />
-          <Route path="/product/:id" element={<ProductDetails />} />
-          <Route path="/category/:name" element={<Category />} />
-          <Route path="/cart" element={<Cart />} />
-          <Route path="/checkout" element={<Checkout />} />
-          <Route path="/admin/login" element={<AdminLogin />} />
-          <Route path="/admin" element={<Admin />} />
-        </Routes>
+        <Suspense fallback={<Loading fullPage />}>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/products" element={<Products />} />
+            <Route path="/product/:id" element={<ProductDetails />} />
+            <Route path="/category/:name" element={<Category />} />
+            <Route path="/cart" element={<Cart />} />
+            <Route path="/checkout" element={<Checkout />} />
+            <Route path="/admin/login" element={<AdminLogin />} />
+            <Route path="/admin" element={<PrivateRoute><Admin /></PrivateRoute>} />
+          </Routes>
+        </Suspense>
       </Router>
     </CartProvider>
   );

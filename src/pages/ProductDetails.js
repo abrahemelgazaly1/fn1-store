@@ -37,7 +37,8 @@ const ProductDetails = () => {
         const data = await res.json();
         setProduct(data);
 
-        const relRes = await fetch(`${API_URL}/api/products`);
+        // Fetch related by category — much smaller payload
+        const relRes = await fetch(`${API_URL}/api/products/category/${data.category}`);
         const relData = await relRes.json();
         setRelatedProducts(relData.filter((p) => p._id !== id).slice(0, 4));
       } catch (error) {
