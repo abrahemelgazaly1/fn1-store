@@ -13,13 +13,12 @@ module.exports = async (req, res) => {
     const collection = db.collection('orders');
 
     if (req.method === 'GET') {
-      if (!requireAdmin(req, res)) return;
+      if (!(await requireAdmin(req, res))) return;
       const orders = await collection.find({}).sort({ createdAt: -1 }).toArray();
       return res.status(200).json(orders);
     }
 
     if (req.method === 'POST') {
-      // Public — customers place orders
       const order = { ...req.body, createdAt: new Date(), status: 'pending' };
       const result = await collection.insertOne(order);
       return res.status(201).json({ ...order, _id: result.insertedId });

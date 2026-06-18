@@ -1,22 +1,32 @@
 const crypto = require('crypto');
+const { getDB } = require('./db');
 
-// In-memory token store — persists within the same serverless instance
-// For Vercel, this is acceptable for a single-admin setup
-const activeSessions = new Set();
-
-const generateToken = () => {
+const generateToken = async () => {
   const token = 'admin-' + crypto.randomBytes(32).toString('hex');
-  activeSessions.add(token);
+  const db = await getDB();
+  await db.collection('sessions').insertOne({
+    token,
+    createdAt: new Date(),
+    // expire after 7 days
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+  });
   return token;
 };
 
-const verifyToken = (req) => {
+const verifyToken = async (req) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
-  return token && activeSessions.has(token);
+  if (!token) return false;
+  const db = await getDB();
+  const session = await db.collection('sessions').findOne({
+    token,
+    expiresAt: { $gt: new Date() },
+  });
+  return !!session;
 };
 
-const requireAdmin = (req, res) => {
-  if (!verifyToken(req)) {
+const requireAdmin = async (req, res) => {
+  const valid = await verifyToken(req);
+  if (!valid) {
     res.status(401).json({ error: 'Unauthorized' });
     return false;
   }

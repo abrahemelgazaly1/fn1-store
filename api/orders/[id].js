@@ -12,7 +12,7 @@ module.exports = async (req, res) => {
   const { id } = req.query;
   if (!id || !ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid order ID' });
 
-  if (!requireAdmin(req, res)) return;
+  if (!(await requireAdmin(req, res))) return;
 
   try {
     const db = await getDB();

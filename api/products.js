@@ -18,7 +18,7 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === 'POST') {
-      if (!requireAdmin(req, res)) return;
+      if (!(await requireAdmin(req, res))) return;
       const product = { ...req.body, createdAt: new Date(), soldOut: false };
       const result = await collection.insertOne(product);
       return res.status(201).json({ ...product, _id: result.insertedId });

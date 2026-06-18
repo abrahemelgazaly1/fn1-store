@@ -23,7 +23,7 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === 'PUT') {
-      if (!requireAdmin(req, res)) return;
+      if (!(await requireAdmin(req, res))) return;
       const { _id, ...updateData } = req.body;
       await collection.updateOne({ _id: new ObjectId(id) }, { $set: updateData });
       const updated = await collection.findOne({ _id: new ObjectId(id) });
@@ -31,7 +31,7 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === 'DELETE') {
-      if (!requireAdmin(req, res)) return;
+      if (!(await requireAdmin(req, res))) return;
       await collection.deleteOne({ _id: new ObjectId(id) });
       return res.status(200).json({ success: true });
     }

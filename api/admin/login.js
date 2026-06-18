@@ -17,7 +17,8 @@ module.exports = async (req, res) => {
     const admin = await db.collection('admins').findOne({ email, password });
 
     if (admin) {
-      return res.status(200).json({ success: true, token: generateToken() });
+      const token = await generateToken();
+      return res.status(200).json({ success: true, token });
     }
     return res.status(401).json({ success: false, error: 'Invalid credentials' });
   } catch (error) {
