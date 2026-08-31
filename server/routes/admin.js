@@ -15,8 +15,6 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
-module.exports.requireAdmin = requireAdmin;
-
 // Admin login
 router.post('/login', async (req, res) => {
   try {
@@ -60,3 +58,4 @@ router.post('/create', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.requireAdmin = requireAdmin;

@@ -1,6 +1,7 @@
+require('dotenv').config();
 const { MongoClient } = require('mongodb');
 
-const uri = 'mongodb+srv://abrahemelgazaly2:abrahem88@cluster0.trilwka.mongodb.net/?appName=Cluster0';
+const uri = process.env.MONGODB_URI;
 
 async function seedAdmin() {
   const client = new MongoClient(uri);
