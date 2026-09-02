@@ -19,7 +19,13 @@ module.exports = async (req, res) => {
 
     if (req.method === 'POST') {
       if (!(await requireAdmin(req, res))) return;
-      const product = { ...req.body, createdAt: new Date(), soldOut: false };
+      const stock = Number(req.body.stock) || 0;
+      const product = { 
+        ...req.body, 
+        stock,
+        createdAt: new Date(), 
+        soldOut: stock === 0 
+      };
       const result = await collection.insertOne(product);
       return res.status(201).json({ ...product, _id: result.insertedId });
     }

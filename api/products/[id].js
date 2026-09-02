@@ -25,6 +25,18 @@ module.exports = async (req, res) => {
     if (req.method === 'PUT') {
       if (!(await requireAdmin(req, res))) return;
       const { _id, ...updateData } = req.body;
+      
+      // Auto-update soldOut status based on stock
+      if (updateData.stock !== undefined) {
+        updateData.stock = Number(updateData.stock);
+        if (updateData.stock === 0) {
+          updateData.soldOut = true;
+        } else if (updateData.stock > 0 && updateData.soldOut) {
+          // If stock is added and product was sold out, mark as available
+          updateData.soldOut = false;
+        }
+      }
+      
       await collection.updateOne({ _id: new ObjectId(id) }, { $set: updateData });
       const updated = await collection.findOne({ _id: new ObjectId(id) });
       return res.status(200).json(updated);
