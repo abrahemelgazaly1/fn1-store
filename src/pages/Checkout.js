@@ -152,6 +152,9 @@ const Checkout = () => {
         createdAt: new Date().toISOString(),
       };
 
+      console.log('📤 Sending order with items:', orderData.items);
+      console.log('ProductIDs:', orderData.items.map(i => i.productId));
+
       const res = await fetch(`${API_URL}/api/orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

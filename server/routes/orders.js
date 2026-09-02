@@ -33,18 +33,36 @@ router.post('/', async (req, res) => {
     const db = getDB();
     const order = { ...req.body, createdAt: new Date(), status: 'pending' };
     
+    console.log('📦 New order received with items:', order.items?.length || 0);
+    
     // Update stock for each item in the order
     if (order.items && Array.isArray(order.items)) {
       for (const item of order.items) {
-        const product = await db.collection('products').findOne({ _id: new ObjectId(item.productId || item._id) });
+        console.log(`Processing item: ${item.name}, productId: ${item.productId}, quantity: ${item.quantity}`);
         
-        if (product) {
+        if (!item.productId) {
+          console.error('❌ Missing productId for item:', item.name);
+          continue;
+        }
+        
+        try {
+          const product = await db.collection('products').findOne({ _id: new ObjectId(item.productId) });
+          
+          if (!product) {
+            console.error(`❌ Product not found: ${item.productId}`);
+            continue;
+          }
+          
+          console.log(`✓ Found product: ${product.name}, current stock: ${product.stock || 0}`);
+          
           const currentStock = product.stock || 0;
           const newStock = Math.max(0, currentStock - (item.quantity || 1));
           
+          console.log(`📉 Updating stock from ${currentStock} to ${newStock}`);
+          
           // Update stock and set soldOut if stock reaches 0
-          await db.collection('products').updateOne(
-            { _id: new ObjectId(item.productId || item._id) },
+          const updateResult = await db.collection('products').updateOne(
+            { _id: new ObjectId(item.productId) },
             { 
               $set: { 
                 stock: newStock,
@@ -52,13 +70,19 @@ router.post('/', async (req, res) => {
               } 
             }
           );
+          
+          console.log(`✓ Stock updated successfully. Modified: ${updateResult.modifiedCount}`);
+        } catch (itemError) {
+          console.error(`❌ Error processing item ${item.name}:`, itemError.message);
         }
       }
     }
     
     const result = await db.collection('orders').insertOne(order);
+    console.log('✅ Order created successfully:', result.insertedId);
     res.status(201).json({ ...order, _id: result.insertedId });
   } catch (error) {
+    console.error('❌ Error creating order:', error);
     res.status(500).json({ error: error.message });
   }
 });
