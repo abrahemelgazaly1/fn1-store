@@ -94,6 +94,40 @@ const Checkout = () => {
     setLoading(true);
 
     try {
+      // Check stock availability for all items before placing order
+      for (const item of cart) {
+        const res = await fetch(`${API_URL}/api/products/${item._id}`);
+        const product = await res.json();
+        
+        if (!res.ok || !product) {
+          throw new Error(`Product ${item.name} not found`);
+        }
+        
+        const availableStock = product.stock || 0;
+        
+        if (availableStock < item.quantity) {
+          Swal.fire({
+            icon: 'error',
+            title: 'Insufficient Stock',
+            html: `<p>Sorry, <strong>${item.name}</strong> only has <strong>${availableStock}</strong> pieces available.</p><p>You requested <strong>${item.quantity}</strong> pieces.</p>`,
+            confirmButtonColor: '#171717'
+          });
+          setLoading(false);
+          return;
+        }
+        
+        if (product.soldOut || availableStock === 0) {
+          Swal.fire({
+            icon: 'error',
+            title: 'Product Unavailable',
+            text: `${item.name} is currently out of stock`,
+            confirmButtonColor: '#171717'
+          });
+          setLoading(false);
+          return;
+        }
+      }
+
       const orderData = {
         items: cart.map((item) => ({
           productId: item._id,
@@ -133,10 +167,11 @@ const Checkout = () => {
           confirmButtonColor: '#171717',
         }).then(() => navigate('/'));
       } else {
-        throw new Error('Failed to place order');
+        const error = await res.json();
+        throw new Error(error.message || 'Failed to place order');
       }
     } catch (error) {
-      Swal.fire({ icon: 'error', title: 'Error', text: 'Something went wrong', confirmButtonColor: '#171717' });
+      Swal.fire({ icon: 'error', title: 'Error', text: error.message || 'Something went wrong', confirmButtonColor: '#171717' });
     } finally {
       setLoading(false);
     }

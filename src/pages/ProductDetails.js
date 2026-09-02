@@ -64,6 +64,19 @@ const ProductDetails = () => {
       Swal.fire({ icon: 'error', title: 'Sold Out', text: 'This product is currently unavailable', confirmButtonColor: '#171717' });
       return;
     }
+    
+    // Check stock availability
+    const availableStock = product.stock || 0;
+    if (availableStock < quantity) {
+      Swal.fire({ 
+        icon: 'error', 
+        title: 'Insufficient Stock', 
+        html: `<p>Only <strong>${availableStock}</strong> pieces available.</p><p>You requested <strong>${quantity}</strong> pieces.</p>`,
+        confirmButtonColor: '#171717' 
+      });
+      return;
+    }
+    
     addToCart(product, selectedSize || 'N/A', selectedColor, quantity);
     Swal.fire({ icon: 'success', title: 'Added to cart!', showConfirmButton: false, timer: 1200 });
   };
@@ -78,6 +91,19 @@ const ProductDetails = () => {
       Swal.fire({ icon: 'warning', title: 'Select color', text: 'Please select a color', confirmButtonColor: '#171717' });
       return;
     }
+    
+    // Check stock availability
+    const availableStock = product.stock || 0;
+    if (availableStock < quantity) {
+      Swal.fire({ 
+        icon: 'error', 
+        title: 'Insufficient Stock', 
+        html: `<p>Only <strong>${availableStock}</strong> pieces available.</p><p>You requested <strong>${quantity}</strong> pieces.</p>`,
+        confirmButtonColor: '#171717' 
+      });
+      return;
+    }
+    
     addToCart(product, selectedSize || 'N/A', selectedColor, quantity);
     navigate('/checkout');
   };
@@ -118,7 +144,24 @@ const ProductDetails = () => {
           {/* Product Info */}
           <div className="animate-fadeIn">
             <h1 className="font-display text-2xl md:text-3xl font-bold text-neutral-900 mb-2">{product.name}</h1>
-            <p className="font-display text-3xl font-bold text-neutral-900 mb-8">{product.price} EGP</p>
+            <p className="font-display text-3xl font-bold text-neutral-900 mb-2">{product.price} EGP</p>
+            
+            {/* Stock availability */}
+            <div className="mb-6">
+              {(product.stock || 0) > 0 ? (
+                <p className={`text-sm font-medium ${
+                  product.stock < 5 ? 'text-yellow-600' : 'text-green-600'
+                }`}>
+                  {product.stock < 5 ? '⚠️ ' : '✓ '}
+                  {product.stock} pieces available
+                  {product.stock < 5 && ' - Hurry up!'}
+                </p>
+              ) : (
+                <p className="text-sm font-medium text-red-600">
+                  ✕ Out of stock
+                </p>
+              )}
+            </div>
 
             {/* Colors */}
             <div className="mb-6">
@@ -188,7 +231,19 @@ const ProductDetails = () => {
                 </button>
                 <span className="font-display text-xl font-semibold w-8 text-center">{quantity}</span>
                 <button
-                  onClick={() => setQuantity(quantity + 1)}
+                  onClick={() => {
+                    const maxStock = product.stock || 0;
+                    if (quantity < maxStock) {
+                      setQuantity(quantity + 1);
+                    } else {
+                      Swal.fire({ 
+                        icon: 'warning', 
+                        title: 'Stock Limit', 
+                        text: `Only ${maxStock} pieces available`, 
+                        confirmButtonColor: '#171717' 
+                      });
+                    }
+                  }}
                   className="w-10 h-10 bg-neutral-100 rounded-xl flex items-center justify-center hover:bg-neutral-200 transition-colors"
                 >
                   <FiPlus className="w-4 h-4" />

@@ -55,7 +55,13 @@ router.get('/:id', async (req, res) => {
 router.post('/', requireAdmin, async (req, res) => {
   try {
     const db = getDB();
-    const product = { ...req.body, createdAt: new Date(), soldOut: false };
+    const stock = Number(req.body.stock) || 0;
+    const product = { 
+      ...req.body, 
+      stock,
+      createdAt: new Date(), 
+      soldOut: stock === 0 
+    };
     const result = await db.collection('products').insertOne(product);
     res.status(201).json({ ...product, _id: result.insertedId });
   } catch (error) {
@@ -68,6 +74,18 @@ router.put('/:id', requireAdmin, async (req, res) => {
   try {
     const db = getDB();
     const { _id, ...updateData } = req.body;
+    
+    // Auto-update soldOut status based on stock
+    if (updateData.stock !== undefined) {
+      updateData.stock = Number(updateData.stock);
+      if (updateData.stock === 0) {
+        updateData.soldOut = true;
+      } else if (updateData.stock > 0 && updateData.soldOut) {
+        // If stock is added and product was sold out, mark as available
+        updateData.soldOut = false;
+      }
+    }
+    
     await db.collection('products').updateOne(
       { _id: new ObjectId(req.params.id) },
       { $set: updateData }

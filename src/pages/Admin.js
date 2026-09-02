@@ -5,7 +5,7 @@ import { FiX, FiPlus, FiPackage, FiShoppingBag, FiLogOut } from 'react-icons/fi'
 import { API_URL } from '../config';
 
 const CLOTHING_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
-const COLORS = ['BLACK', 'WHITE', 'BLUE', 'RED', 'BEIGE', 'PINK', 'GRAY', 'BROWN', 'GREEN', 'YELLOW'];
+const SUGGESTED_COLORS = ['BLACK', 'WHITE', 'BLUE', 'RED', 'BEIGE', 'PINK', 'GRAY', 'BROWN', 'GREEN', 'YELLOW'];
 const CATEGORIES = ['T-Shirts', 'Cap', 'Bracelet', 'Wallet', 'Belt', 'Necklace', 'Ring', 'Boxers', 'Bags'];
 const CATEGORIES_WITH_SIZES = ['T-Shirts', 'Boxers'];
 
@@ -20,9 +20,10 @@ const Admin = () => {
   const [editingProduct, setEditingProduct] = useState(null);
 
   const [form, setForm] = useState({
-    name: '', price: '', description: '', category: '',
+    name: '', price: '', description: '', category: '', stock: '',
     sizes: [], colors: [], images: [], soldOutSizes: [], soldOutColors: [],
   });
+  const [customColor, setCustomColor] = useState('');
 
   const authHeaders = () => ({
     'Content-Type': 'application/json',
@@ -80,6 +81,26 @@ const Admin = () => {
     colors: prev.colors.includes(color) ? prev.colors.filter((c) => c !== color) : [...prev.colors, color],
   }));
 
+  const addCustomColor = () => {
+    if (!customColor.trim()) return;
+    const upperColor = customColor.trim().toUpperCase();
+    if (form.colors.includes(upperColor)) {
+      Swal.fire({ icon: 'info', title: 'Already added', text: 'This color is already in the list', confirmButtonColor: '#171717' });
+      return;
+    }
+    setForm((prev) => ({ ...prev, colors: [...prev.colors, upperColor] }));
+    setCustomColor('');
+    Swal.fire({ icon: 'success', title: 'Color added!', showConfirmButton: false, timer: 1000 });
+  };
+
+  const removeColor = (color) => {
+    setForm((prev) => ({
+      ...prev,
+      colors: prev.colors.filter((c) => c !== color),
+      soldOutColors: prev.soldOutColors?.filter((c) => c !== color) || [],
+    }));
+  };
+
   const toggleSoldOutSize = (size) => setForm((prev) => ({
     ...prev,
     soldOutSizes: prev.soldOutSizes?.includes(size)
@@ -95,12 +116,16 @@ const Admin = () => {
   }));
 
   const handleSubmit = async () => {
-    if (!form.name || !form.price || !form.category || form.colors.length === 0) {
-      Swal.fire({ icon: 'warning', title: 'Missing fields', text: 'Please fill all required fields', confirmButtonColor: '#171717' });
+    if (!form.name || !form.price || !form.category || form.colors.length === 0 || !form.stock) {
+      Swal.fire({ icon: 'warning', title: 'Missing fields', text: 'Please fill all required fields including stock quantity', confirmButtonColor: '#171717' });
       return;
     }
     if (categoryHasSizes() && form.sizes.length === 0) {
       Swal.fire({ icon: 'warning', title: 'Missing sizes', text: 'Please select at least one size', confirmButtonColor: '#171717' });
+      return;
+    }
+    if (Number(form.stock) < 0) {
+      Swal.fire({ icon: 'warning', title: 'Invalid stock', text: 'Stock quantity cannot be negative', confirmButtonColor: '#171717' });
       return;
     }
     setLoading(true);
@@ -109,7 +134,7 @@ const Admin = () => {
       const method = editingProduct ? 'PUT' : 'POST';
       const res = await fetch(url, {
         method, headers: authHeaders(),
-        body: JSON.stringify({ ...form, price: Number(form.price) }),
+        body: JSON.stringify({ ...form, price: Number(form.price), stock: Number(form.stock) }),
       });
       if (res.ok) {
         Swal.fire({ icon: 'success', title: editingProduct ? 'Updated!' : 'Added!', showConfirmButton: false, timer: 1200 });
@@ -122,7 +147,8 @@ const Admin = () => {
   };
 
   const resetForm = () => {
-    setForm({ name: '', price: '', description: '', category: '', sizes: [], colors: [], images: [], soldOutSizes: [], soldOutColors: [] });
+    setForm({ name: '', price: '', description: '', category: '', stock: '', sizes: [], colors: [], images: [], soldOutSizes: [], soldOutColors: [] });
+    setCustomColor('');
     setEditingProduct(null);
   };
 
@@ -130,9 +156,11 @@ const Admin = () => {
     setEditingProduct(product);
     setForm({
       name: product.name, price: product.price.toString(), description: product.description || '',
-      category: product.category, sizes: product.sizes || [], colors: product.colors || [], images: product.images || [],
+      category: product.category, stock: product.stock?.toString() || '0',
+      sizes: product.sizes || [], colors: product.colors || [], images: product.images || [],
       soldOutSizes: product.soldOutSizes || [], soldOutColors: product.soldOutColors || [],
     });
+    setCustomColor('');
     setActiveTab('add');
   };
 
@@ -221,6 +249,8 @@ const Admin = () => {
               onChange={(e) => setForm({ ...form, name: e.target.value })} className="input-style" />
             <input type="number" placeholder="Price (EGP)" value={form.price}
               onChange={(e) => setForm({ ...form, price: e.target.value })} className="input-style" />
+            <input type="number" placeholder="Stock Quantity (Available pieces)" value={form.stock}
+              onChange={(e) => setForm({ ...form, stock: e.target.value })} className="input-style" />
             <textarea placeholder="Description" value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
               className="input-style h-24 resize-none" />
@@ -261,29 +291,85 @@ const Admin = () => {
                 )}
                 <div>
                   <p className="text-sm font-medium text-neutral-700 mb-2">Colors</p>
-                  <div className="flex flex-wrap gap-2">
-                    {COLORS.map((color) => (
-                      <div key={color} className="relative">
-                        <button onClick={() => toggleColor(color)}
-                          className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                            form.colors.includes(color) ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-700'
-                          }`}>
+                  
+                  {/* Quick select from suggested colors */}
+                  <div className="mb-3">
+                    <p className="text-xs text-neutral-500 mb-2">Quick select:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {SUGGESTED_COLORS.map((color) => (
+                        <button
+                          key={color}
+                          onClick={() => toggleColor(color)}
+                          type="button"
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                            form.colors.includes(color) ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                          }`}
+                        >
                           {color}
                         </button>
-                        {form.colors.includes(color) && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); toggleSoldOutColor(color); }}
-                            className={`absolute -top-1 -right-1 w-5 h-5 rounded-full text-[10px] font-bold ${
-                              form.soldOutColors?.includes(color) ? 'bg-red-500 text-white' : 'bg-yellow-400 text-neutral-900'
-                            }`}
-                          >
-                            {form.soldOutColors?.includes(color) ? '✕' : '✓'}
-                          </button>
-                        )}
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                  <p className="text-xs text-neutral-500 mt-2">Click the badge to mark color as sold out</p>
+
+                  {/* Add custom color */}
+                  <div className="mb-3">
+                    <p className="text-xs text-neutral-500 mb-2">Add custom color:</p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Enter color name (e.g., NAVY BLUE)"
+                        value={customColor}
+                        onChange={(e) => setCustomColor(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomColor())}
+                        className="flex-1 px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                      />
+                      <button
+                        type="button"
+                        onClick={addCustomColor}
+                        className="px-4 py-2 bg-neutral-900 text-white rounded-xl text-sm font-medium hover:bg-neutral-800 transition-colors"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Selected colors with ability to remove */}
+                  {form.colors.length > 0 && (
+                    <div>
+                      <p className="text-xs text-neutral-500 mb-2">Selected colors ({form.colors.length}):</p>
+                      <div className="flex flex-wrap gap-2">
+                        {form.colors.map((color) => (
+                          <div key={color} className="relative group">
+                            <button
+                              type="button"
+                              className="px-4 py-2 bg-neutral-900 text-white rounded-xl text-sm font-medium pr-8"
+                            >
+                              {color}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => removeColor(color)}
+                              className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 bg-red-500 text-white rounded-lg flex items-center justify-center text-xs hover:bg-red-600 transition-colors"
+                            >
+                              <FiX className="w-3 h-3" />
+                            </button>
+                            {form.colors.includes(color) && (
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); toggleSoldOutColor(color); }}
+                                className={`absolute -top-1 -right-1 w-5 h-5 rounded-full text-[10px] font-bold ${
+                                  form.soldOutColors?.includes(color) ? 'bg-red-500 text-white' : 'bg-yellow-400 text-neutral-900'
+                                }`}
+                              >
+                                {form.soldOutColors?.includes(color) ? '✕' : '✓'}
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-xs text-neutral-500 mt-2">Click X to remove, click the badge to mark as sold out</p>
+                    </div>
+                  )}
                 </div>
               </>
             )}
@@ -331,6 +417,11 @@ const Admin = () => {
                   <div className="flex-1">
                     <h3 className="font-medium text-neutral-900">{product.name}</h3>
                     <p className="text-neutral-500 text-sm">{product.price} EGP • {product.category}</p>
+                    <p className={`text-sm font-semibold mt-1 ${
+                      (product.stock || 0) === 0 ? 'text-red-600' : (product.stock || 0) < 5 ? 'text-yellow-600' : 'text-green-600'
+                    }`}>
+                      Stock: {product.stock || 0} pieces {(product.stock || 0) === 0 && '(Out of stock)'}
+                    </p>
                     <div className="flex gap-2 mt-3">
                       <button onClick={() => handleDelete(product._id)}
                         className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-medium hover:bg-red-100">Delete</button>

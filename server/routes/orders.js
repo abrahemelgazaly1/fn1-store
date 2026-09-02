@@ -32,6 +32,30 @@ router.post('/', async (req, res) => {
   try {
     const db = getDB();
     const order = { ...req.body, createdAt: new Date(), status: 'pending' };
+    
+    // Update stock for each item in the order
+    if (order.items && Array.isArray(order.items)) {
+      for (const item of order.items) {
+        const product = await db.collection('products').findOne({ _id: new ObjectId(item.productId || item._id) });
+        
+        if (product) {
+          const currentStock = product.stock || 0;
+          const newStock = Math.max(0, currentStock - (item.quantity || 1));
+          
+          // Update stock and set soldOut if stock reaches 0
+          await db.collection('products').updateOne(
+            { _id: new ObjectId(item.productId || item._id) },
+            { 
+              $set: { 
+                stock: newStock,
+                soldOut: newStock === 0
+              } 
+            }
+          );
+        }
+      }
+    }
+    
     const result = await db.collection('orders').insertOne(order);
     res.status(201).json({ ...order, _id: result.insertedId });
   } catch (error) {

@@ -1,17 +1,59 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import { useCart } from '../context/CartContext';
 import { FiMinus, FiPlus, FiTrash2, FiShoppingBag } from 'react-icons/fi';
+import Swal from 'sweetalert2';
+import { API_URL } from '../config';
 
 const SHIPPING_COST = 120;
 
 const Cart = () => {
   const { cart, removeFromCart, updateQuantity, cartTotal } = useCart();
   const navigate = useNavigate();
+  const [productsStock, setProductsStock] = useState({});
 
   const total = cartTotal + (cart.length > 0 ? SHIPPING_COST : 0);
+
+  useEffect(() => {
+    // Fetch stock info for all cart items
+    const fetchStockInfo = async () => {
+      const stockData = {};
+      for (const item of cart) {
+        try {
+          const res = await fetch(`${API_URL}/api/products/${item._id}`);
+          const product = await res.json();
+          if (product) {
+            stockData[item._id] = product.stock || 0;
+          }
+        } catch (error) {
+          console.error('Error fetching stock:', error);
+        }
+      }
+      setProductsStock(stockData);
+    };
+    
+    if (cart.length > 0) {
+      fetchStockInfo();
+    }
+  }, [cart]);
+
+  const handleUpdateQuantity = (item, newQuantity) => {
+    const availableStock = productsStock[item._id] || 0;
+    
+    if (newQuantity > availableStock) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Stock Limit',
+        html: `<p>Only <strong>${availableStock}</strong> pieces available for <strong>${item.name}</strong></p>`,
+        confirmButtonColor: '#171717'
+      });
+      return;
+    }
+    
+    updateQuantity(item._id, item.size, item.color, newQuantity);
+  };
 
   return (
     <div className="min-h-screen bg-white">
@@ -50,18 +92,28 @@ const Cart = () => {
                       {item.color} / {item.size}
                     </p>
                     <p className="font-display font-semibold text-neutral-900 mt-1">{item.price} EGP</p>
+                    
+                    {/* Stock info */}
+                    {productsStock[item._id] !== undefined && (
+                      <p className={`text-xs font-medium mt-1 ${
+                        productsStock[item._id] === 0 ? 'text-red-600' :
+                        productsStock[item._id] < 5 ? 'text-yellow-600' : 'text-green-600'
+                      }`}>
+                        {productsStock[item._id]} available
+                      </p>
+                    )}
 
                     <div className="flex items-center justify-between mt-3">
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => updateQuantity(item._id, item.size, item.color, item.quantity - 1)}
+                          onClick={() => handleUpdateQuantity(item, item.quantity - 1)}
                           className="w-8 h-8 bg-white rounded-lg flex items-center justify-center hover:bg-neutral-200 transition-colors"
                         >
                           <FiMinus className="w-3 h-3" />
                         </button>
                         <span className="w-8 text-center font-medium text-sm">{item.quantity}</span>
                         <button
-                          onClick={() => updateQuantity(item._id, item.size, item.color, item.quantity + 1)}
+                          onClick={() => handleUpdateQuantity(item, item.quantity + 1)}
                           className="w-8 h-8 bg-white rounded-lg flex items-center justify-center hover:bg-neutral-200 transition-colors"
                         >
                           <FiPlus className="w-3 h-3" />
